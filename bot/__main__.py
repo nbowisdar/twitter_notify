@@ -1,7 +1,5 @@
 import asyncio
-import json
 import logging
-import os
 import sys
 
 from aiogram import Bot, Dispatcher, types
@@ -9,29 +7,23 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import Command
 from dotenv import load_dotenv
+from twscrape import Tweet
 
-from bot.utils import extract_username, get_command_args
+from bot.db import get_db, save_db
+from bot.loader import PARSING_INTERVAL_SEC, TOKEN
+from bot.utils import check_proxy, extract_username, get_command_args
+from bot.x_parser import XManager, XParser
 
 # Load environment variables from .env file
 load_dotenv()
 
-# Configure logging
+
 logging.basicConfig(level=logging.INFO)
 
-# Initialize bot and dispatcher
-TOKEN = os.getenv("BOT_TOKEN")  # Load token from .env
 
 dp = Dispatcher()
-
-
-def get_db() -> dict:
-    with open("db.json", "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def save_db(data: dict):
-    with open("db.json", "w", encoding="utf-8") as f:
-        json.dump(data, f)
+x_parser = XParser()
+x_manager = XManager(x_parser, int(PARSING_INTERVAL_SEC))
 
 
 # Handler for /start command
@@ -43,18 +35,40 @@ async def send_welcome(message: types.Message):
 # Handler for /help command
 @dp.message(Command("help"))
 async def send_help(message: types.Message):
-    await message.reply(
-        "I can:\n- Respond to /start\n- Respond to /help\n- Echo any text you send me!"
-    )
+    help_text = """
+        <b>📋 Twitter Bot Commands</b>\n\n
+        Here's what I can do:\n
+        🔹 <b>/start</b> - Start the bot and get a welcome message.
+        🔹 <b>/help</b> - Show this help message with all available commands.
+        🔹 <b>/set_proxy &lt;proxy&gt;</b> - Set a proxy for the Twitter parser.
+           Example: <code>/set_proxy http://login:pass@example.com:8080</code>
+        🔹 <b>/users</b> - List all tracked Twitter users.
+        🔹 <b>/add_user &lt;username or URL&gt;</b> - Add a Twitter user to track.
+           Example: <code>/add_user elonmusk</code> or <code>/add_user https://twitter.com/elonmusk</code>
+        🔹 <b>/delete_user &lt;username or URL&gt;</b> - Remove a tracked Twitter user.
+           Example: <code>/delete_user elonmusk</code>
+        🔹 <b>/activate_parser</b> - Start the parser to monitor tweets from tracked users.
+        🔹 <b>/stop_parser</b> - Stop the tweet parser.
+    """
+    await message.reply(help_text)
 
 
-@dp.message(Command("add_proxy"))
+@dp.message(Command("set_proxy"))
 async def _(message: types.Message):
     # Extract proxy details from command arguments
     proxy = await get_command_args(message)
-    await message.reply(f"✅ Adding proxy {proxy}...")
+    await message.reply(f"Adding proxy {proxy}...")
+
+    if await check_proxy(proxy):
+        x_manager.set_proxy(proxy)
+        await message.answer(
+            f"✅ Parser set to use proxy {proxy}... Need to /activate_parser"
+        )
+    else:
+        await message.answer(f"❌ Proxy {proxy} is not working. Or wrong format.")
 
 
+# USERS
 @dp.message(Command("users"))
 async def _(message: types.Message):
     # Extract proxy details from command arguments
@@ -66,23 +80,49 @@ async def _(message: types.Message):
 async def _(message: types.Message):
     db = get_db()
     link = await get_command_args(message)
-    user = extract_username(link)
-    if user in db["users"]:
-        await message.reply(f"User {user} already exists!")
+    username = extract_username(link)
+    if username in db["users"].keys():
+        await message.reply(f"User {username} already exists!")
         return
-    db["users"].append(user)
+    x_user_id = await x_manager.x_parser.get_user_id_by_username(username)
+    db["users"][username] = x_user_id
     save_db(db)
-    await message.reply(f"✅ Adding user {user}...")
+
+    await message.reply(f"✅ Adding user {username}...")
 
 
 @dp.message(Command("delete_user"))
 async def _(message: types.Message):
     db = get_db()
     link = await get_command_args(message)
-    user = extract_username(link)
-    db["users"].remove(user)
+    username = extract_username(link)
+    try:
+        del db["users"][username]
+    except KeyError:
+        await message.reply(f"User {username} does not exist!")
+        return
     save_db(db)
-    await message.reply(f"✅ Deleting user {user}...")
+    await message.reply(f"✅ Deleting user {username}...")
+
+
+# management
+@dp.message(Command("activate_parser"))
+async def _(message: types.Message):
+    await message.reply("✅ Activating parser...")
+
+    async def on_new_tweet(tweets: list[Tweet]):
+        for tweet in tweets:
+            await message.answer(tweet.url)
+
+    x_manager.on_new_tweet_cb = on_new_tweet
+    await x_manager.active()
+
+
+# management
+@dp.message(Command("stop_parser"))
+async def _(message: types.Message):
+    await message.reply("✅ Stopping parser...")
+    await x_manager.stop()
 
 
 async def main() -> None:

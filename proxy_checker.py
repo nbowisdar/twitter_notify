@@ -25,25 +25,26 @@ def parse_proxy(line):
     except ValueError:
         return None
 
-async def check_proxy(proxy, sem):
+
+async def check_proxy(proxy):
     """Check if a proxy is working by making an async request."""
     proxy_str = f"{proxy['ip']}:{proxy['port']}"
     proxy_url = f"http://{proxy['username']}:{proxy['password']}@{proxy['ip']}:{proxy['port']}"
-    
-    async with sem:
-        try:
-            print(f"Checking proxy {proxy_str}...")
-            async with httpx.AsyncClient(proxy=proxy_url, timeout=TIMEOUT) as client:
-                response = await client.get(TEST_URL)
-                if response.status_code == 200:
-                    # Optionally verify the proxy IP in the response
-                    ip = response.json().get("origin", "")
-                    print(f"Proxy {proxy_str} is WORKING (IP: {ip})")
-                else:
-                    print(f"Proxy {proxy_str} FAILED (Status: {response.status_code})")
-        except (httpx.RequestError, httpx.TimeoutException, httpx.HTTPStatusError) as e:
-            print(f"Error checking proxy {proxy_str}: {str(e)}")
-            return f"Proxy {proxy_str} FAILED (Error: {str(e)})"
+
+    try:
+        print(f"Checking proxy {proxy_str}...")
+        async with httpx.AsyncClient(proxy=proxy_url, timeout=TIMEOUT) as client:
+            response = await client.get(TEST_URL)
+            if response.status_code == 200:
+                # Optionally verify the proxy IP in the response
+                ip = response.json().get("origin", "")
+                print(f"Proxy {proxy_str} is WORKING (IP: {ip})")
+            else:
+                print(f"Proxy {proxy_str} FAILED (Status: {response.status_code})")
+    except (httpx.RequestError, httpx.TimeoutException, httpx.HTTPStatusError) as e:
+        print(f"Error checking proxy {proxy_str}: {str(e)}")
+        return f"Proxy {proxy_str} FAILED (Error: {str(e)})"
+
 
 async def main(proxy_file="proxies.txt"):
     """Main function to check proxies from a file."""
