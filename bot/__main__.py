@@ -112,7 +112,21 @@ async def _(message: types.Message):
 
     async def on_new_tweet(tweets: list[Tweet]):
         for tweet in tweets:
-            await message.answer(tweet.url)
+            from_name = tweet.user.displayname
+            tweet_type = "📝 Tweet"
+            if tweet.retweetedTweet:
+                tweet_type = "🎥🔄 Retweet"
+            if tweet.quotedTweet:
+                tweet_type = "💬 Quote"
+            msg = f"""
+{tweet_type} by {from_name}:\n
+{tweet.rawContent}\n
+            """
+            if tweet.media:
+                for media in tweet.media:
+
+                    msg += f"{media.url}\n"
+            await message.answer(msg)
 
     x_manager.on_new_tweet_cb = on_new_tweet
     await x_manager.active()

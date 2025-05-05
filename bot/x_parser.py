@@ -1,5 +1,6 @@
 import asyncio
 from datetime import date
+from pprint import pprint
 
 from twscrape import API, Tweet, gather
 
@@ -111,8 +112,8 @@ class XManager:
 async def main():
     x_parser = XParser()
     await x_parser.load_accounts()
-    resp = await x_parser.get_user_id_by_username("rokowoy")
-    print(resp)
+    resp = await x_parser.get_tweets("1499077769740886018", limit=2)
+    pprint(resp)
 
 
 if __name__ == "__main__":
