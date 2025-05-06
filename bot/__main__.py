@@ -11,7 +11,8 @@ from twscrape import Tweet
 
 from bot.db import get_db, save_db
 from bot.loader import PARSING_INTERVAL_SEC, TOKEN
-from bot.utils import check_proxy, extract_username, get_command_args
+from bot.proxy import check_proxy
+from bot.utils import extract_username, get_command_args
 from bot.x_parser import XManager, XParser
 
 # Load environment variables from .env file
@@ -122,11 +123,17 @@ async def _(message: types.Message):
 {tweet_type} by {from_name}:\n
 {tweet.rawContent}\n
             """
-            if tweet.media:
-                for media in tweet.media:
-
-                    msg += f"{media.url}\n"
-            await message.answer(msg)
+            try:
+                photo_url = tweet.media.photos[0].url
+            except Exception:
+                photo_url = None
+            if photo_url:
+                try:
+                    await message.answer_photo(photo_url, caption=msg)
+                except Exception:
+                    await message.answer(msg)
+            else:
+                await message.answer(msg)
 
     x_manager.on_new_tweet_cb = on_new_tweet
     await x_manager.active()
