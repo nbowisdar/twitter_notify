@@ -9,6 +9,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 DB_FILE = BASE_DIR / "db.json"
 ACCOUNTS_FILE = BASE_DIR / "accounts.txt"
+PROXIES_FILE = BASE_DIR / "proxies.txt"
 
 
 # Initialize bot and dispatcher

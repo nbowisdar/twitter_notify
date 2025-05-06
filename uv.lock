@@ -628,6 +628,7 @@ dependencies = [
     { name = "orjson" },
     { name = "pytelegrambotapi" },
     { name = "python-dotenv" },
+    { name = "requests" },
     { name = "twscrape" },
 ]
 
@@ -637,6 +638,7 @@ requires-dist = [
     { name = "orjson", specifier = ">=3.10.18" },
     { name = "pytelegrambotapi", specifier = ">=4.27.0" },
     { name = "python-dotenv", specifier = ">=1.1.0" },
+    { name = "requests", specifier = ">=2.32.3" },
     { name = "twscrape", specifier = ">=0.17.0" },
 ]
 

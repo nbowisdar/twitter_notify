@@ -8,7 +8,7 @@ from aiogram.enums import ParseMode
 from aiogram.filters import Command
 from dotenv import load_dotenv
 from twscrape import Tweet
-
+from bot.proxy import get_active_proxies
 from bot.db import get_db, save_db
 from bot.loader import PARSING_INTERVAL_SEC, TOKEN
 from bot.proxy import check_proxy
@@ -41,8 +41,7 @@ async def send_help(message: types.Message):
         Here's what I can do:\n
         🔹 <b>/start</b> - Start the bot and get a welcome message.
         🔹 <b>/help</b> - Show this help message with all available commands.
-        🔹 <b>/set_proxy &lt;proxy&gt;</b> - Set a proxy for the Twitter parser.
-           Example: <code>/set_proxy http://login:pass@example.com:8080</code>
+        🔹 <b>/check_proxy &lt;proxy&gt;</b> - Check proxies.
         🔹 <b>/users</b> - List all tracked Twitter users.
         🔹 <b>/add_user &lt;username or URL&gt;</b> - Add a Twitter user to track.
            Example: <code>/add_user elonmusk</code> or <code>/add_user https://twitter.com/elonmusk</code>
@@ -111,6 +110,9 @@ async def _(message: types.Message):
 async def _(message: types.Message):
     await message.reply("✅ Activating parser...")
 
+    async def on_run_out_of_proxies(not_enough_proxies=None):
+        await message.answer(f"❌ Out of proxies. Need at lease {not_enough_proxies} proxies.")
+
     async def on_new_tweet(tweets: list[Tweet]):
         for tweet in tweets:
             from_name = tweet.user.displayname
@@ -136,8 +138,14 @@ async def _(message: types.Message):
                 await message.answer(msg)
 
     x_manager.on_new_tweet_cb = on_new_tweet
-    await x_manager.active()
+    await x_manager.active(on_run_out_of_proxies=on_run_out_of_proxies)
 
+
+# management
+@dp.message(Command("check_proxy"))
+async def _(message: types.Message):
+    proxies = await get_active_proxies()
+    await message.reply(f"✅ Good Proxies: {len(proxies)}")
 
 # management
 @dp.message(Command("stop_parser"))

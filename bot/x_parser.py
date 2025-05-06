@@ -6,7 +6,7 @@ from twscrape import API, Tweet, gather
 
 from bot.db import existing_user_ids, filter_new_tweets, save_new_tweets
 from bot.loader import ACCOUNTS_FILE
-
+from bot.proxy import get_active_proxies, format_proxy_auth
 
 class XParser:
     def __init__(self):
@@ -17,7 +17,7 @@ class XParser:
         self.api = API(proxy=proxy)
         self.load_accounts()
 
-    async def load_accounts(self):
+    async def load_accounts(self, on_run_out_of_proxies=None):
         # Option 1. Adding account with cookies (more stable)
         # Combine ct0 and auth_token into cookies string
         
@@ -32,8 +32,10 @@ class XParser:
         #     "nr6hztf8Me",
         #     cookies=cookies,
         # )
+        proxies = await get_active_proxies()
+        index = 0
+        not_enough_proxies = 0
         try:
-            print(ACCOUNTS_FILE)
             with open(ACCOUNTS_FILE, "r", encoding="utf-8") as file:
                 for line in file:
                     # Skip empty lines
@@ -58,18 +60,29 @@ class XParser:
                     cookies = f"ct0={ct0}; auth_token={auth_token}"
 
                     # Add account to API pool
+                    try:
+                        proxy = format_proxy_auth(proxies[index])
+                    except IndexError:
+                        proxy = None
+                        not_enough_proxies += 1
+                        print (f"Proxy index out of range: {index}")
                     await self.api.pool.add_account(
                         username=username,
                         password=password,
                         email=email,
                         email_password=email_password,
                         cookies=cookies,
+                        proxy=proxy,
                     )
+                    index += 1
         except FileNotFoundError:
             print(f"Account file not found: {ACCOUNTS_FILE}")
         except Exception as e:
             print(f"Error loading accounts: {str(e)}")
 
+        if not_enough_proxies > 0:
+            if on_run_out_of_proxies:
+                await on_run_out_of_proxies(not_enough_proxies)
     async def get_user_id_by_username(self, username: str):
         user = await self.api.user_by_login(username)
         if user:
@@ -92,9 +105,9 @@ class XManager:
         self.stop()
         self.x_parser.set_proxy(proxy)
 
-    async def active(self):
+    async def active(self, on_run_out_of_proxies=None):
         self.is_active = True
-        await self.x_parser.load_accounts()
+        await self.x_parser.load_accounts(on_run_out_of_proxies)
         await self.work()
 
     async def stop(self):
