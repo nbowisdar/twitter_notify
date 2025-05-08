@@ -79,8 +79,8 @@ async def _(message: types.Message):
 @dp.message(Command("add_user"))
 async def _(message: types.Message):
     db = get_db()
-    link = await get_command_args(message)
-    username = extract_username(link)
+    username = await get_command_args(message)
+    username = username.replace("@", "") 
     if username in db["users"].keys():
         await message.reply(f"User {username} already exists!")
         return
@@ -94,8 +94,8 @@ async def _(message: types.Message):
 @dp.message(Command("delete_user"))
 async def _(message: types.Message):
     db = get_db()
-    link = await get_command_args(message)
-    username = extract_username(link)
+    username = await get_command_args(message)
+    username = username.replace("@", "")
     try:
         del db["users"][username]
     except KeyError:
